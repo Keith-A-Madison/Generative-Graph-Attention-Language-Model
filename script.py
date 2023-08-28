@@ -4,12 +4,18 @@ from tensorflow.keras.layers import Input, Embedding, Dense
 from spektral.layers import GCNConv
 from spektral.utils import normalized_adjacency
 from tensorflow.keras.preprocessing.sequence import pad_sequences
+from data import get_training_data
 
 # Need to change all the 9's as soon as the vocab size grows :(
-corpus = ["The quick brown fox jumps", "over the lazy dog", "and goes to the store", "to buy some tacos"] #, "and goes to the store", "to buy some tacos"]
+corpus = get_training_data("/home/kmadison/gpt/GenAtten/training/") # ["The quick brown fox jumps", "over the lazy dog", "and goes to the store", "to buy some tacos"] #, "and goes to the store", "to buy some tacos"]
 tokens = [sentence.split() for sentence in corpus]
+#tokens.append('<PAD>')
 vocab = set(token for sentence in tokens for token in sentence)
+#vocab.append('<PAD>')
+#print(vocab)
 vocab_size = len(vocab)
+
+print("Vocabulary size: ", vocab_size)
 
 word2idx = {word: idx for idx, word in enumerate(vocab)}
 idx2word = {idx: word for word, idx in word2idx.items()}
@@ -55,24 +61,46 @@ print(train_data_padded)
 train_data_padded = np.array(train_data_padded)
 train_labels = np.array(train_labels)
 
+num_epochs = 100
 # Training loop
-model.fit(train_data_padded, tf.keras.utils.to_categorical(train_labels, num_classes=vocab_size), epochs=750)
+model.fit(train_data_padded, tf.keras.utils.to_categorical(train_labels, num_classes=vocab_size), epochs=num_epochs)
 
 print(vocab_size)
 
+padding_token = "<PAD>"
+
 # Text generation
-initial_string = "The quick brown fox jumps over the lazy dog and buy some tacos and goes to"
-generated_tokens = [word2idx[token] for token in initial_string.split()]
+initial_string = "The traffic"
+initial_tokens = initial_string.split()
+
+# Fill up to 9 tokens if the initial string is shorter
+while len(initial_tokens) < vocab_size:
+    initial_tokens.insert(0, padding_token)
+#    initial_tokens.append(padding_token)  # Replace with appropriate padding token
+
+generated_tokens = [word2idx[token] for token in initial_tokens]
 max_generation_length = 40
 
-for _ in range(max_generation_length):
-#    current_seq = np.array([generated_tokens])
-    current_seq = np.array([generated_tokens[-vocab_size:]]) # Input needs to have 9 elements, so look at only last 9 tokens
-    next_token_probs = model.predict(current_seq)[0]  # Get probabilities for the next token. Not sure why this is 2x2, so for now just take 1st row
-    print(next_token_probs[0])
-    next_token = np.random.choice(np.arange(vocab_size), p=next_token_probs[0])
-    generated_tokens.append(next_token)
-    print("NEXT!!!") # Need to work on this. For now, its based on only the last 9 (or last 1???) token(s)
+# Number of tokens from the initial string that have been used
+initial_tokens_used = len(initial_tokens)
 
-generated_text = " ".join([idx2word[idx] for idx in generated_tokens])
+for _ in range(max_generation_length):
+    current_seq = np.array([generated_tokens[-vocab_size:]])  # Always use the last vocab_size tokens
+    next_token_probs = model.predict(current_seq)[0][-1] # Not sure if this is right?
+    next_token = np.random.choice(np.arange(vocab_size), p=next_token_probs)
+    generated_tokens.append(next_token)
+
+    # If there are more initial tokens to use, do that
+    if initial_tokens_used < len(initial_tokens):
+        generated_tokens[-vocab_size:] = [word2idx[token] for token in initial_tokens[initial_tokens_used:]]
+        initial_tokens_used = len(initial_tokens)
+
+# Generate text
+generated_text = [idx2word[idx] for idx in generated_tokens]
+
+# Remove trailing "<PAD>" tokens
+generated_text = [token for token in generated_text if token != padding_token]
+
+# Join the tokens into text
+generated_text = " ".join(generated_text)
 print("Generated Text:", generated_text)
