@@ -6,7 +6,7 @@ from spektral.utils import normalized_adjacency
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 # Need to change all the 9's as soon as the vocab size grows :(
-corpus = ["The quick brown fox jumps", "over the lazy dog"] #, "and goes to the store", "to buy some tacos"]
+corpus = ["The quick brown fox jumps", "over the lazy dog", "and goes to the store", "to buy some tacos"] #, "and goes to the store", "to buy some tacos"]
 tokens = [sentence.split() for sentence in corpus]
 vocab = set(token for sentence in tokens for token in sentence)
 vocab_size = len(vocab)
@@ -42,7 +42,7 @@ train_data = [[word2idx[token] for token in sentence] for sentence in tokens]
 # Padding and truncating sequences to a fixed length
 # max_sequence_length = max(len(sentence) for sentence in train_data)
 # For some reason, max_sequence_length must equal the number of vocabular words???
-max_sequence_length = 9
+max_sequence_length = vocab_size
 train_data_padded = pad_sequences(train_data, maxlen=max_sequence_length, padding='post', truncating='post')
 
 # Shift train_data_padded to create train_labels
@@ -58,14 +58,16 @@ train_labels = np.array(train_labels)
 # Training loop
 model.fit(train_data_padded, tf.keras.utils.to_categorical(train_labels, num_classes=vocab_size), epochs=750)
 
+print(vocab_size)
+
 # Text generation
-initial_string = "The quick brown fox jumps over the lazy dog"
+initial_string = "The quick brown fox jumps over the lazy dog and buy some tacos and goes to"
 generated_tokens = [word2idx[token] for token in initial_string.split()]
 max_generation_length = 40
 
 for _ in range(max_generation_length):
 #    current_seq = np.array([generated_tokens])
-    current_seq = np.array([generated_tokens[-9:]]) # Input needs to have 9 elements, so look at only last 9 tokens
+    current_seq = np.array([generated_tokens[-vocab_size:]]) # Input needs to have 9 elements, so look at only last 9 tokens
     next_token_probs = model.predict(current_seq)[0]  # Get probabilities for the next token. Not sure why this is 2x2, so for now just take 1st row
     print(next_token_probs[0])
     next_token = np.random.choice(np.arange(vocab_size), p=next_token_probs[0])
